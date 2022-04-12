@@ -8,12 +8,15 @@ import {
   ApolloServerPluginDrainHttpServer,
   ApolloServerPluginLandingPageGraphQLPlayground,
 } from "apollo-server-core";
-import { WebSocketServer } from "ws";
-import { useServer } from "graphql-ws/lib/use/ws";
+import {
+  ConnectionContext,
+  SubscriptionServer,
+} from "subscriptions-transport-ws";
 
 import { HelloWorldResolver } from "./resolvers/HelloWorldResolver";
 import { User } from "./entities/User";
 import { UserResolver } from "./resolvers/UserResolver";
+import { execute, subscribe } from "graphql";
 
 (async () => {
   const AppDataSource = new DataSource({
@@ -28,16 +31,30 @@ import { UserResolver } from "./resolvers/UserResolver";
 
   const app: Express = express();
   const httpServer = createServer(app);
-  const wsServer = new WebSocketServer({
-    server: httpServer,
-    path: "/graphql",
-  });
 
   const schema = await buildSchema({
     resolvers: [HelloWorldResolver, UserResolver],
   });
 
-  const serverCleanup = useServer({ schema }, wsServer);
+  const subscriptionServer = SubscriptionServer.create(
+    {
+      schema,
+
+      execute,
+      subscribe,
+
+      async onConnect(
+        connectionParams: Object,
+        webSocket: WebSocket,
+        context: ConnectionContext
+      ) {},
+    },
+    {
+      server: httpServer,
+
+      path: "/graphql",
+    }
+  );
 
   const apolloServer = new ApolloServer({
     schema,
@@ -50,7 +67,7 @@ import { UserResolver } from "./resolvers/UserResolver";
         async serverWillStart() {
           return {
             async drainServer() {
-              await serverCleanup.dispose();
+              subscriptionServer.close();
             },
           };
         },
@@ -62,7 +79,7 @@ import { UserResolver } from "./resolvers/UserResolver";
 
   apolloServer.applyMiddleware({ app, cors: false });
 
-  const PORT = 3000;
+  const PORT = 8080;
 
   httpServer.listen(PORT, () => {
     console.log(
