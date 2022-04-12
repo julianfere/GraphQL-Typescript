@@ -44,7 +44,7 @@ export class UserResolver {
     const user = User.create({ name, surname, age });
     await user.save();
 
-    publish({ user });
+    await publish({ user });
 
     return user;
   }
@@ -80,7 +80,9 @@ export class UserResolver {
     topics: "NOTIFICATIONS",
   })
   newUser(@Root() notificationPayload: NotificationPayload): String {
-    const { user } = notificationPayload;
-    return `${user.name} ${user.surname}`;
+    const user = notificationPayload?.user;
+    return user
+      ? `New user created ${user.name} ${user.surname}, with the id ${user.id}`
+      : "";
   }
 }
